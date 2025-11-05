@@ -9,12 +9,12 @@
 
 **Lunar Lite V2** includes:
 
-- ✅ Ema Smoothening
+- ✅ EMA Smoothening
 - ✅ Built-in UI  
-- ✅ Improved detection accuracy  
-- ✅ Supports **YOLOv8**, **YOLOv10**, **YOLOv12**, and **TensorRT**  
-- ✅ Supports both .PT and .ONNX Model
-- ✅ DDxoft & Arduino compatible
+- ✅ Improved detection accuracy 
+- ✅ Supports **YOLOv8**, **YOLOv10**, **YOLOv12**
+- ✅ Supports both **.PT** and **.ONNX Model**
+- ✅ **DDxoft & Arduino** compatible
 - ✅ Works only on NVIDIA graphics cards
 
 ---
