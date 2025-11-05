@@ -1,35 +1,21 @@
-# 🧠 YoloV12 AI Aimbot - Lunar LITE
+# 🧠 YoloV12 AI Aimbot - Lunar LITE V2
 
-**Lunar LITE** is built on top of the original [Lunar](https://github.com/zeyad-mansour/lunar) project.
+**Lunar LITE V2** is forked from [Lunar Lite](https://github.com/xxreflextheone/AI-Aimbot) project.
 
-It features an updated triggerbot, modernized packages, and YOLOv12 support.
-
-<div align="center">
-
-<img src="https://ucarecdn.com/97ff66ce-04db-424f-97ad-3f246ebabef6/lunar_downloads.svg" alt="downloads" /><br>
-<a href="https://discord.gg/aiaimbot">
-  <img src="https://ucarecdn.com/c6b01f6a-a399-46e7-b89b-3f39b198888e/lunar_discord.svg" alt="Join Discord" />
-</a>
-
-</div>
 
 ---
 
-## 🚀 Lunar V2 (Premium)
+## 🚀 Lunar Lite V2
 
-**Lunar V2** includes:
+**Lunar Lite V2** includes:
 
-- ✅ 25+ customizable settings  
+- ✅ Ema Smoothening
 - ✅ Built-in UI  
 - ✅ Improved detection accuracy  
 - ✅ Supports **YOLOv8**, **YOLOv10**, **YOLOv12**, and **TensorRT**  
-- ✅ Xbox controller support
-- ✅ Logitech GHUB mouse input
-- ✅ Works on AMD and NVIDIA graphics cards
-
-[Download Lunar V2](https://gannonr.com/lunar)
-
-![Lunar V2 UI](https://github.com/user-attachments/assets/173ace44-2a46-45a3-aeba-5c2ce9c9e7b4)
+- ✅ Supports both .PT and .ONNX Model
+- ✅ DDxoft & Arduino compatible
+- ✅ Works only on NVIDIA graphics cards
 
 ---
 
@@ -38,8 +24,6 @@ It features an updated triggerbot, modernized packages, and YOLOv12 support.
 Lunar uses screen capture + YOLO object detection to locate enemies in real-time.
 
 > It doesn’t touch memory or inject code — think of it as a robot that watches your screen and gives you precise X,Y coordinates of targets.
-
-🎯 Preconfigured for **Fortnite** — some sensitivity tuning may be needed for other games.
 
 ---
 
@@ -94,27 +78,6 @@ pip3 install torch torchvision torchaudio --index-url https://download.pytorch.o
 python lunar.py
 ```
 
----
-
-### To configure sensitivity:
-```
-python lunar.py setup
-```
-
----
-
-### To collect training images:
-```
-python lunar.py collect_data
-```
-
 </details>
 
 ---
-
-## 💬 Discord Support
-
-Support is only **guaranteed** for **Lunar V2**.  
-Please don’t expect full help for the free **LITE** version.
-
-👉 [Join our Discord](https://discord.gg/aiaimbot)
