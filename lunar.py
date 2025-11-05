@@ -2,14 +2,28 @@ import json
 import os
 import sys
 from pynput import keyboard
+from pynput import mouse
 from termcolor import colored
 
 def on_release(key):
     try:
-        if key == keyboard.Key.f1:
-            Aimbot.update_status_aimbot()
+        # F1 removed (replaced by mouse side button)
         if key == keyboard.Key.f2:
             Aimbot.clean_up()
+    except NameError:
+        pass
+
+def on_click(x, y, button, pressed):
+    # Use the release event for a toggle (pressed==False -> release)
+    if pressed:
+        return
+    try:
+        # Toggle aimbot on side button X1 release (Button.x1)
+        if button == mouse.Button.x1:
+            Aimbot.update_status_aimbot()
+        # Optional: use X2 to quit (uncomment if desired)
+        # elif button == mouse.Button.x2:
+        #     Aimbot.clean_up()
     except NameError:
         pass
 
@@ -57,8 +71,6 @@ if __name__ == "__main__":
  |_____\___/|_| \_/_/   \_\_| \_\  |_____|___| |_| |_____|
                                                                          
 (Neural Network Aimbot)''', "green"))
-    
-    print(colored('To get full version of Lunar V2, visit https://gannonr.com/lunar OR join the discord: discord.gg/aiaimbot', "red"))
 
     path_exists = os.path.exists("lib/config/config.json")
     if not path_exists or ("setup" in sys.argv):
@@ -69,6 +81,13 @@ if __name__ == "__main__":
     if "collect_data" in sys.argv and not path_exists:
         os.makedirs("lib/data")
     from lib.aimbot import Aimbot
+
+    # Start keyboard listener (only F2 used now)
     listener = keyboard.Listener(on_release=on_release)
     listener.start()
+
+    # Start mouse listener (Button.x1 toggles aimbot on release)
+    mouse_listener = mouse.Listener(on_click=on_click)
+    mouse_listener.start()
+
     main()
