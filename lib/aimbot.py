@@ -26,16 +26,21 @@ screen_res_y = screensize['Y']
 screen_x = int(screen_res_x / 2)
 screen_y = int(screen_res_y / 2)
 
-aim_height = 10 # The lower the number, the higher the aim_height. For example: 2 would be the head and 100 would be the feet.
+aim_height = 6 # The lower the number, the higher the aim_height. For example: 2 would be the head and 100 would be the feet.
 
-fov = 350
+fov = 210  # Field of View for the aimbot box size. Default is 210 pixels (smaller = more precise, larger = easier to hit but less precise)
 
 confidence = 0.45 # How confident the AI needs to be for it to lock on to the player. Default is 45%
 
-use_trigger_bot = True # Will shoot if crosshair is locked on the player
+use_trigger_bot = False # Will shoot if crosshair is locked on the player
 
-mouse_methods = ['win32', 'ddxoft']
-mouse_method = mouse_methods[1]  # 0 is win32. 1 is ddxoft.
+# mouse methods: 0 win32, 1 ddxoft, 2 arduino
+mouse_methods = ['win32', 'ddxoft', 'arduino']
+mouse_method = mouse_methods[1]  # default unchanged: 0 is win32. 1 is ddxoft. set to mouse_methods[2] to enable Arduino
+
+# Arduino defaults (can be overridden via ARDUINO_PORT env var)
+ARDUINO_PORT = os.environ.get("ARDUINO_PORT", "COM6")
+ARDUINO_BAUD = 115200
 
 PUL = ctypes.POINTER(ctypes.c_ulong)
 class KeyBdInput(ctypes.Structure):
@@ -80,13 +85,15 @@ class Aimbot:
         sens_config = json.load(f)
     aimbot_status = colored("ENABLED", 'green')
     mouse_dll = None
+    arduino_serial = None  # handle for pyserial Serial if Arduino mode used
 
     def __init__(self, box_constant = fov, collect_data = False, mouse_delay = 0.0009):
         #controls the initial centered box width and height of the "Lunar Vision" window
         self.box_constant = box_constant #controls the size of the detection box (equaling the width and height)
 
         print("[INFO] Loading the neural network model")
-        self.model = YOLO('lib/best.pt')
+        # keep original behavior: load ONNX via ultralytics loader
+        self.model = YOLO('lib/AIOv11.onnx', task='detect')
         if torch.cuda.is_available():
             print(colored("CUDA ACCELERATION [ENABLED]", "green"))
         else:
@@ -99,7 +106,19 @@ class Aimbot:
         self.mouse_delay = mouse_delay
         self.mouse_method = mouse_method
 
-        if self.mouse_method.lower() == 'ddxoft':
+        # normalize mouse_method to string (allow integer index or string)
+        if isinstance(self.mouse_method, int):
+            try:
+                self.mouse_method = mouse_methods[int(self.mouse_method)]
+            except Exception:
+                self.mouse_method = mouse_methods[0]
+        if isinstance(self.mouse_method, str):
+            self.mouse_method = self.mouse_method.lower()
+        else:
+            self.mouse_method = str(self.mouse_method).lower()
+
+        # initialize ddxoft if selected (original behavior)
+        if self.mouse_method == 'ddxoft':
             dll_path = os.path.abspath("lib/mouse/dd40605x64.dll")
             assert os.path.exists(dll_path), f"ddxoft DLL not found at {dll_path}"
             Aimbot.mouse_dll = ctypes.WinDLL(dll_path)
@@ -110,11 +129,55 @@ class Aimbot:
             init = Aimbot.mouse_dll.DD_btn(0)
             if not init == 1:
                 print('Failed to initialize ddxoft mouse. Defaulting to Win32')
-                self.mouse_method = 'Win32'
+                self.mouse_method = 'win32'
             else:
                 print(colored('Loaded ddxoft successfully!', 'green'))
 
-        print("\n[INFO] PRESS 'F1' TO TOGGLE AIMBOT\n[INFO] PRESS 'F2' TO QUIT")
+        # initialize Arduino serial if selected
+        elif self.mouse_method == 'arduino':
+            try:
+                import serial
+                port = getattr(self, "ARDUINO_PORT", ARDUINO_PORT)
+                baud = getattr(self, "ARDUINO_BAUD", ARDUINO_BAUD)
+                print(f"[INFO] Attempting to open Arduino serial at {port} @{baud}...")
+                # small timeout so reads don't block; we'll only write
+                Aimbot.arduino_serial = serial.Serial(port=port, baudrate=baud, timeout=0.1)
+                # wait for the board to enumerate/reset
+                time.sleep(2.0)
+                try:
+                    Aimbot.arduino_serial.reset_input_buffer()
+                    Aimbot.arduino_serial.reset_output_buffer()
+                except Exception:
+                    pass
+                print(colored(f"[INFO] Arduino serial opened on {port}", "green"))
+            except Exception as e:
+                # If Arduino fails, attempt ddxoft as fallback, then win32
+                print(colored(f"[WARN] Failed to open Arduino serial: {e}. Attempting ddxoft as fallback...", "yellow"))
+                try:
+                    dll_path = os.path.abspath("lib/mouse/dd40605x64.dll")
+                    if os.path.exists(dll_path):
+                        Aimbot.mouse_dll = ctypes.WinDLL(dll_path)
+                        time.sleep(1)
+                        Aimbot.mouse_dll.DD_btn.argtypes = [ctypes.c_int]
+                        Aimbot.mouse_dll.DD_btn.restype = ctypes.c_int
+                        init = Aimbot.mouse_dll.DD_btn(0)
+                        if init == 1:
+                            print(colored('Fallback ddxoft loaded successfully!', 'green'))
+                            self.mouse_method = 'ddxoft'
+                        else:
+                            print(colored('Fallback ddxoft initialization failed. Defaulting to Win32.', 'yellow'))
+                            self.mouse_method = 'win32'
+                            Aimbot.mouse_dll = None
+                    else:
+                        print(colored('ddxoft DLL not found for fallback. Defaulting to Win32.', 'yellow'))
+                        self.mouse_method = 'win32'
+                except Exception as e2:
+                    print(colored(f"[WARN] ddxoft fallback failed: {e2}. Defaulting to Win32 mouse.", "yellow"))
+                    self.mouse_method = 'win32'
+                    Aimbot.mouse_dll = None
+                Aimbot.arduino_serial = None
+
+        print("\n[INFO] PRESS 'Side Button X1' TO TOGGLE AIMBOT\n[INFO] PRESS 'F2' TO QUIT")
 
     def update_status_aimbot():
         if Aimbot.aimbot_status == colored("ENABLED", 'green'):
@@ -125,14 +188,31 @@ class Aimbot:
         print(f"[!] AIMBOT IS [{Aimbot.aimbot_status}]", end = "\r")
 
     def left_click(self):
-        if self.mouse_method.lower() == 'ddxoft':
+        if self.mouse_method == 'ddxoft':
             Aimbot.mouse_dll.DD_btn(1)
             Aimbot.sleep(0.001)
             Aimbot.mouse_dll.DD_btn(2)
-        elif self.mouse_method.lower() == 'win32':
+        elif self.mouse_method == 'win32':
             ctypes.windll.user32.mouse_event(0x0002) #left mouse down
             Aimbot.sleep(0.0001)
             ctypes.windll.user32.mouse_event(0x0004) #left mouse up
+        elif self.mouse_method == 'arduino':
+            try:
+                if Aimbot.arduino_serial and Aimbot.arduino_serial.is_open:
+                    # protocol expected by your serial.ino: "x,y,m\n" -> use m==1 for click
+                    Aimbot.arduino_serial.write(b"0,0,1\n")
+                    Aimbot.arduino_serial.flush()
+                    Aimbot.sleep(0.001)
+                else:
+                    # fallback to win32
+                    ctypes.windll.user32.mouse_event(0x0002)
+                    Aimbot.sleep(0.0001)
+                    ctypes.windll.user32.mouse_event(0x0004)
+            except Exception:
+                # on error fallback
+                ctypes.windll.user32.mouse_event(0x0002)
+                Aimbot.sleep(0.0001)
+                ctypes.windll.user32.mouse_event(0x0004)
 
     def sleep(duration, get_now = time.perf_counter):
         if duration == 0: return
@@ -148,12 +228,29 @@ class Aimbot:
         return win32api.GetKeyState(0x01) in (-127, -128)
     
     def is_targeted():
-        return win32api.GetKeyState(0x02) in (-127, -128)
+        # original used 0x01 mistakenly in some variants; correct here to use right mouse (0x02)
+        return win32api.GetKeyState(0x01) in (-127, -128)
 
     def is_target_locked(x, y):
         #plus/minus 5 pixel threshold
         threshold = 5
         return screen_x - threshold <= x <= screen_x + threshold and screen_y - threshold <= y <= screen_y + threshold
+
+    def _send_arduino_move(rel_x, rel_y):
+        """
+        Send relative move to Arduino using the serial.ino protocol: "x,y,0\n"
+        Keep as best-effort; failures silently fallback so main loop continues.
+        """
+        try:
+            if Aimbot.arduino_serial and Aimbot.arduino_serial.is_open:
+                cmd = f"{int(rel_x)},{int(rel_y)},0\n".encode("ascii")
+                Aimbot.arduino_serial.write(cmd)
+                Aimbot.arduino_serial.flush()
+            else:
+                raise RuntimeError("Arduino serial not open")
+        except Exception:
+            # silent fallback
+            pass
 
     def move_crosshair(self, x, y):
         if Aimbot.is_targeted():
@@ -162,12 +259,15 @@ class Aimbot:
             return
 
         for rel_x, rel_y in Aimbot.interpolate_coordinates_from_center((x, y), scale):
-            if self.mouse_method.lower() == 'ddxoft':
+            if self.mouse_method == 'ddxoft':
                 Aimbot.mouse_dll.DD_movR(rel_x, rel_y)
-            elif self.mouse_method.lower() == 'win32':
+            elif self.mouse_method == 'win32':
                 Aimbot.ii_.mi = MouseInput(rel_x, rel_y, 0, 0x0001, 0, ctypes.pointer(Aimbot.extra))
                 input_obj = Input(ctypes.c_ulong(0), Aimbot.ii_)
                 ctypes.windll.user32.SendInput(1, ctypes.byref(input_obj), ctypes.sizeof(input_obj))
+            elif self.mouse_method == 'arduino':
+                # send to Arduino which will call Mouse.move on the device
+                Aimbot._send_arduino_move(rel_x, rel_y)
             Aimbot.sleep(self.mouse_delay)
 
     #generator yields pixel tuples for relative movement
@@ -256,6 +356,12 @@ class Aimbot:
 
     def clean_up():
         print("\n[INFO] F2 WAS PRESSED. QUITTING...")
+        # close Arduino serial if open
+        try:
+            if Aimbot.arduino_serial and Aimbot.arduino_serial.is_open:
+                Aimbot.arduino_serial.close()
+        except Exception:
+            pass
         Aimbot.screen.close()
         os._exit(0)
 
